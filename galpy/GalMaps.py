@@ -19,10 +19,16 @@ class GalMapsHeal:
         """
         Read GALPROP map given in healpix format.
         
-        Input:
-        input_file [str]: input GALPROP map in healpix format.
-        verbose: If True print more info about data. Default is False.
-        Note: Currently only compatible with GALPROP v57. 
+        Parameters
+        ----------
+        input_file : str 
+            Input GALPROP map in healpix format.
+        verbose : boolean, optional 
+            If True print more info about data. Default is False.
+        
+        Note
+        ----
+        Currently only compatible with GALPROP v57. 
         """
 
         print()
@@ -78,8 +84,10 @@ class GalMapsHeal:
         """
         Define healpix object for given energy bin.
         
-        Input:
-        energy_bin [int]: energy slice to use for healpix object. 
+        Parameters
+        -----------
+        energy_bin : int 
+            Energy slice to use for healpix object. 
         """
 
         # Get data slice for given energy bin:
@@ -97,12 +105,14 @@ class GalMapsHeal:
         """
         Plot healpix map.
 
-        Input:
-        savefile [str]: Name of output image file.
-        
-        Optional:
-        plot_kwargs [dict]: pass any kwargs to plt.imshow().
-        fig_kwargs [dict]: pass any kwargs to plt.gca().set().
+        Parameters
+        -----------
+        savefile : str 
+            Name of output image file.
+        plot_kwargs : dict, optional 
+            Pass any kwargs to plt.imshow().
+        fig_kwargs : dict, optional 
+            Pass any kwargs to plt.gca().set().
         """
         
         # Make plot:
@@ -122,10 +132,14 @@ class GalMapsHeal:
         """
         Get pixels corresonding to disk region.
         
-        Inputs:
-        theta: colatitude (zenith angle) in degrees, ranging from 0 - 180 degrees.
-        phi: longitude (azimuthal angle) in degrees, ranging from 0 - 360 degrees..
-        rad: radius of region in degrees.
+        Parameters
+        ----------
+        theta : float 
+            Colatitude (zenith angle) in degrees, ranging from 0 - 180 degrees.
+        phi : float
+            Longitude (azimuthal angle) in degrees, ranging from 0 - 360 degrees..
+        rad : float 
+            Radius of region in degrees.
         """
        
         # Convert degree to radian:
@@ -144,16 +158,21 @@ class GalMapsHeal:
 
         """
         Get pixels corresponding to polygon region. 
-        Note: The order of the vertices matters --
-              the polygon can't be self-intersecting,
-              otherwise an "unknown exception" will be thrown.
         
-        Inputs:
-        theta: list of theta values for vertices, in degrees.
-               Note: theta is the colatitude (zenith angle), 
-               ranging from 0 - 180 degrees.
-        phi:   list of phi values for vertices, in degrees.
-               Note: phi is the longitude, ranging from 0 - 360 degrees.
+        Parameters
+        ----------
+        theta : list
+            List of theta values for vertices, in degrees. 
+            Note that theta is the colatitude (zenith angle), 
+            ranging from 0 - 180 degrees.
+        phi : list   
+            List of phi values for vertices, in degrees. 
+            Note that phi is the longitude, ranging from 0 - 360 degrees.
+
+        Note
+        ----
+        The order of the vertices matters. The polygon can't be self-intersecting,
+        otherwise an "unknown exception" will be thrown.
         """
         
         # Convert lists in degrees to radians:
@@ -186,7 +205,11 @@ class GalMapsHeal:
         
         """
         Mask region given by pixs arguement.
-        pixs: healpy pixs to be masked.
+        
+        Parameters
+        ----------
+        pixs : list or array
+            healpy pixs to be masked.
         """
 
         self.galmap[pixs] = 0
@@ -198,9 +221,10 @@ class GalMapsHeal:
         """
         Make average spectrum over specified region.
         
-        Optional Inputs:
-        pixs [array]: Healpix pixels to use. 
-            - Default is None, which uses all-sky.
+        Parameters
+        ----------
+        pixs : array, optional 
+            Healpix pixels to use. Default is None, which uses all-sky.
         """
         
         # Make spectrum:
@@ -226,8 +250,10 @@ class GalMapsHeal:
         """
         Write spectrum to file.
         
-        Input:
-        savefile [str]: Name of output data file (tab delimited).
+        Parameters
+        ----------
+        savefile : str 
+            Name of output data file (tab delimited).
         """
         
         # Need to reformat energy data to be commpatible with pandas:
@@ -245,8 +271,10 @@ class GalMapsHeal:
         """
         Plot map spectrum.
         
-        Input:
-        savefile: Name of saved image file.
+        Parameters
+        ----------
+        savefile : str 
+            Name of saved image file.
         """
 
         # Setup figure:
@@ -269,19 +297,24 @@ class GalMapsHeal:
 
         return
 
-    def gal2mega(self,file_type,output_file):
+    def gal2mega(self, file_type, output_file, use_2d=False):
 
         """
         Convert GALPROP map to MEGAlib cosima input.
         
-        Inputs:
-        file_type: 'fits' for mapcupe fits file or 'heal' for healpix file.
-        output_file: Name of output file (do not include .dat). 
+        Parameters
+        ----------
+        file_type : str
+            'fits' for mapcupe fits file or 'heal' for healpix file.
+        output_file : str
+            Name of output file (do not include .dat). 
+        use_2d : boolean, optional
+            option to use 2d FITS file. Default is False (corresponding to 3d). 
         """
         
         # Make energy array:
         energy_list = []
-        for each in self.energy: # [:21]
+        for each in self.energy: 
             this_energy = float('{:.1f}'.format(each*1000.0)) # convert to keV and format
             energy_list.append(this_energy)
         print() 
@@ -342,11 +375,17 @@ class GalMapsHeal:
 
                     # to get flux from mapcube:
                     if file_type == "fits":
-                        
-                        pixs = self.wcs.all_world2pix(np.array([[this_l,this_b,0]]),0)
-                        this_l_pix = int(math.floor(pixs[0][0]))
-                        this_b_pix = int(math.floor(pixs[0][1]))
-                        this_flux = self.data[E,this_b_pix,this_l_pix] / 1000.0 # ph/cm^2/s/keV/sr
+                       
+                        if use_2d == True:
+                            pixs = self.wcs.all_world2pix(np.array([[this_l,this_b]]),0)
+                            this_l_pix = int(math.floor(pixs[0][0]))
+                            this_b_pix = int(math.floor(pixs[0][1]))
+                            this_flux = self.data[this_b_pix,this_l_pix] / 1000.0 # ph/cm^2/s/keV/sr
+                        else:
+                            pixs = self.wcs.all_world2pix(np.array([[this_l,this_b,0]]),0)
+                            this_l_pix = int(math.floor(pixs[0][0]))
+                            this_b_pix = int(math.floor(pixs[0][1]))
+                            this_flux = self.data[E,this_b_pix,this_l_pix] / 1000.0 # ph/cm^2/s/keV/sr
 
                     # Format:
                     this_flux = float('{:.5e}'.format(this_flux))
@@ -365,8 +404,13 @@ class GalMapsFITS(GalMapsHeal):
 
     def read_fits_file(self, input_file):
 
-        """Read GALPROP map given in fits format."""
+        """Read GALPROP map given in fits format.
 
+        Parameters
+        ----------
+        input_file : str
+        Name of input GALPROP  FITS file.
+        """
         print()
         print("**********************")
         print("GALPROP Fits READER")
@@ -381,23 +425,51 @@ class GalMapsFITS(GalMapsHeal):
 
         return
 
-    def get_fits_region(self,lat,lon,lon2=[]):
+    def read_fits_objects(self, energy, data, wcs):
+
+        """Read input objects defining FITS file.
+
+
+        Parameters
+        ----------
+        energy : list
+            List of energies in MeV.
+        data : array
+            FITS data array in ph/cm2/s/MeV/sr. 
+            Can be 2d or 3d. 
+        wcs : WCS object
+            Specifies world coordinate system from FITS file. 
+            Use WCS(header)
+        """
+        
+        self.data = data
+        self.energy = energy
+        self.wcs = wcs
+
+        return
+
+    def get_fits_region(self, lat, lon, lon2=[], use_2d=False):
 
         """
         Get pixels for specified spatial region.
         
-        Inputs:
-        lat [list]: min and max Galactic latitude of region, inclusive. 
-        lon [list]: min and max Galactic longitude of region, inclusive.
-        
-        Optional:
-        lon2 [list]: min and max Galactic longtitude of region (inclusive, exclusive). 
-            - This arguement compliments 'lon' for regions about the 
+        Parameters
+        ----------
+        lat : list 
+            Min and max Galactic latitude of region, inclusive. 
+        lon : list 
+            Min and max Galactic longitude of region, inclusive.
+        lon2 : list, optional
+            Min and max Galactic longtitude of region (inclusive, exclusive). 
+            This arguement compliments 'lon' for regions about the 
             Galactic center, since l ranges from 0 - 360 degrees. 
         """
 
         # Make ra and dec lists:
-        index_array = np.argwhere(self.data[0,:,:] < 1e50) #arbitrary condition to ensure all pixels are extracted
+        if use_2d == True:
+            index_array = np.argwhere(self.data[:,:] < 1e50) #arbitrary condition to ensure all pixels are extracted
+        else:
+            index_array = np.argwhere(self.data[0,:,:] < 1e50) #arbitrary condition to ensure all pixels are extracted
         ralist = []
         declist = []
         for each in index_array:
@@ -438,31 +510,45 @@ class GalMapsFITS(GalMapsHeal):
      
         return [SR0,SR1]
  
-    def make_spectrum(self,pixs=None):
+    def make_spectrum(self, pixs=None, use_2d=False):
 
         """
         Make spectrum by averaging over specified region.
         
-        Optional:
-        pixs [list]: pixels of region to be used for calculation.
-            - Should be a list containing SRO and SR1, 
-              returned from self.gets_fits_region.
+        Parameters
+        ----------
+        pixs : list, optional
+            Pixels of region to be used for calculation.
+            Should be a list containing SRO and SR1, 
+            returned from self.gets_fits_region.
+        use_2d : boolean, optional
+            Option to use 2d FITS file. Default is False, 
+            corresponding to 3d. 
         """
 
         spectra_list = []
         for E in range(0,len(self.energy)):
             
-            # Get average over all-sky:
-            if pixs is None:
-                spectra_list.append(np.mean(self.data[E,:,:]))
+            if use_2d == False:
+                # Get average over all-sky:
+                if pixs is None:
+                    spectra_list.append(np.mean(self.data[E,:,:]))
 
-            # Get average over specified region:
-            else:
-                spectra_list.append(np.mean(self.data[E,pixs[1],pixs[0]]))
+                # Get average over specified region:
+                else:
+                    spectra_list.append(np.mean(self.data[E,pixs[1],pixs[0]]))
         
+            if use_2d == True:
+                # Get average over all-sky:
+                if pixs is None:
+                    spectra_list.append(np.mean(self.data[:,:]))
+
+                # Get average over specified region:
+                else:
+                    spectra_list.append(np.mean(self.data[pixs[1],pixs[0]]))
+
         spectra_list = np.array(spectra_list)
         self.spectra_list = (self.energy**2)*spectra_list
-        #self.spectra_list = spectra_list
 
         return
 
@@ -473,9 +559,12 @@ class Utils(GalMapsFITS):
         """
         Sum multiple spectra. Added files must have the same binning.
         
-        inputs:
-        savefile [str]: name of saved .dat file.
-        input_files [list]: list of spectra to add, given as .dat files.
+        Parameters
+        ----------
+        savefile : str 
+            Name of saved .dat file.
+        input_files : list 
+            List of spectra to add, given as .dat files.
         """
 
         # Add spectra from list:
@@ -501,17 +590,22 @@ class Utils(GalMapsFITS):
         """
         Plot multiple map spectra.
         
-        Inputs:
-        savefile [str]: Name of saved image file.
-        input_files [list]: List of input file(s) to plot.
-        labels [list]: List of legend labels corresponding to input files.
-            -Must have a label for each input file.
-        
-        Optional:
-        fig_kwargs [dict]: pass any kwargs to plt.gca().set()
-        plot_kwargs [dict]: pass any kwargs to plt.plot().
-            - Each key must define a list corresponding to input_files. 
-        show_plot: set to False to not show plot. 
+        Parameters
+        ----------
+        savefile : str 
+            Name of saved image file.
+        input_files : list
+            List of input file(s) to plot.
+        labels : list 
+            List of legend labels corresponding to input files.
+            Must have a label for each input file.
+        fig_kwargs : dict, optional 
+            Pass any kwargs to plt.gca().set()
+        plot_kwargs : dict, optional 
+            Pass any kwargs to plt.plot().
+            Each key must define a list corresponding to input_files. 
+        show_plot : boolean, optional 
+            Set to False to not show plot. 
         """
 
         # Setup figure:

@@ -28,6 +28,15 @@ pixs=instance.get_fits_region([-47.5,47.5],[0,47.5],lon2=[312.5,360])
 instance.make_spectrum(pixs)
 instance.write_spectrum("output_spectrum.dat")
 
+# For general all-sky FITS map:
+hdu = fits.open("your_file.fits")
+data = hdu[1].data
+header = hdu[1].header
+wcs = WCS(header)
+energy = [0.510,0.511,0.512]
+instance = GalMapsFITS()
+instance.read_fits_objects(energy,data,wcs)
+
 # Running Utils:
 instance = Utils()
 
@@ -44,3 +53,9 @@ instance.plot_mult_spectra(savefile,inputs,labels,\
         fig_kwargs={'title':'Inner Galaxy ($|l| < 47.5^\circ; |b|<47.5^\circ$)',\
         'ylim':(1e-4,1e0),'xlim':(1e-2,1e4)},\
         plot_kwargs={'ls':ls,'color':color},show_plot=True)
+
+# Converting to MEGAlib input format:
+instance.gal2mega("heal","output_file",use_2d=False) # 3d Healpix input, GALPROP v57 only
+instance.gal2mega("fits","output_file",use_2d=False) # 3d FITS input
+instance.gal2mega("fits","output_file",use_2d=True) # 2d FITS input
+

@@ -309,7 +309,13 @@ class GalMapsHeal:
         output_file : str
             Name of output file (do not include .dat). 
         use_2d : boolean, optional
-            option to use 2d FITS file. Default is False (corresponding to 3d). 
+            option to use 2d FITS file. Default is False (corresponding to 3d).
+        
+        Note
+        ----
+        The code supports non-all-sky input images. The MEGAlib input will still be all-sky,
+        but the flux will be set to 0 for pixels outside of the input image. This is
+        currently only supported in 2d mode. 
         """
         
         # Make energy array:
@@ -348,7 +354,8 @@ class GalMapsHeal:
         f.write(PA_line + "\n")
         f.write(TA_line + "\n")
         f.write(EA_line + "\n")
-
+            
+        image_pix=0
         # Make main:
         for E in range(0,len(energy_list)):
     
@@ -378,14 +385,30 @@ class GalMapsHeal:
                        
                         if use_2d == True:
                             pixs = self.wcs.all_world2pix(np.array([[this_l,this_b]]),0)
-                            this_l_pix = int(math.floor(pixs[0][0]))
-                            this_b_pix = int(math.floor(pixs[0][1]))
-                            this_flux = self.data[this_b_pix,this_l_pix] / 1000.0 # ph/cm^2/s/keV/sr
+                         
+                            # Check that pixel is in image:
+                            if (0 <= pixs[0][0] < self.wcs.pixel_shape[0]) and (0 <= pixs[0][1] < self.wcs.pixel_shape[1]):
+                                this_l_pix = int(math.floor(pixs[0][0]))
+                                this_b_pix = int(math.floor(pixs[0][1]))
+                                this_flux = self.data[this_b_pix,this_l_pix] / 1000.0 # ph/cm^2/s/keV/sr
+                                image_pix += 1
+                            # If not, set flux to zero:
+                            else:
+                                print("WARNING: Pixel out of input map! Setting flux to zero.")
+                                this_flux = 0.0
                         else:
                             pixs = self.wcs.all_world2pix(np.array([[this_l,this_b,0]]),0)
-                            this_l_pix = int(math.floor(pixs[0][0]))
-                            this_b_pix = int(math.floor(pixs[0][1]))
-                            this_flux = self.data[E,this_b_pix,this_l_pix] / 1000.0 # ph/cm^2/s/keV/sr
+                            
+                            # Check that pixel is in image:
+                            if (0 <= pixs[0][0] < self.wcs.pixel_shape[0]) and (0 <= pixs[0][1] < self.wcs.pixel_shape[1]):
+                                this_l_pix = int(math.floor(pixs[0][0]))
+                                this_b_pix = int(math.floor(pixs[0][1]))
+                                this_flux = self.data[E,this_b_pix,this_l_pix] / 1000.0 # ph/cm^2/s/keV/sr
+                                image_pix += 1
+                            # If not, set flux to zero:
+                            else:
+                                print("WARNING: Pixel out of input map! Setting flux to zero.")
+                                this_flux = 0.0
 
                     # Format:
                     this_flux = float('{:.5e}'.format(this_flux))
@@ -397,7 +420,9 @@ class GalMapsHeal:
         # Close file:
         f.write("EN")
         f.close()
-
+        
+        print("total image pixels used (for all E bins): " + str(image_pix))
+        
         return
     
 class GalMapsFITS(GalMapsHeal):

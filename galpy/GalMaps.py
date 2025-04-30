@@ -320,7 +320,7 @@ class GalMapsHeal:
         
         # Make energy array:
         energy_list = []
-        for each in self.energy: 
+        for each in self.energy[:21]: 
             this_energy = float('{:.1f}'.format(each*1000.0)) # convert to keV and format
             energy_list.append(this_energy)
         print() 
@@ -370,7 +370,7 @@ class GalMapsHeal:
                 for j in range(0,len(TA)):
         
                     this_b = 90-TA[j]
-
+                    
                     # to get flux from healpix map:
                     if file_type == "heal":
                         
@@ -420,8 +420,9 @@ class GalMapsHeal:
         # Close file:
         f.write("EN")
         f.close()
-        
-        print("total image pixels used (for all E bins): " + str(image_pix))
+       
+        if file_type == "fits":
+            print("total image pixels used (for all E bins): " + str(image_pix))
         
         return
     

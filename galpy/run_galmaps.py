@@ -23,7 +23,7 @@ instance.plot_spectrum("spectra.pdf")
 # Running fits: 
 this_file = "full/path/to/GALPROP/fits/mapcube/output"
 instance = GalMapsFITS()
-instance.read_fits_file(galdiff)
+instance.read_fits_file(this_file)
 pixs=instance.get_fits_region([-47.5,47.5],[0,47.5],lon2=[312.5,360])
 instance.make_spectrum(pixs)
 instance.write_spectrum("output_spectrum.dat")
@@ -41,7 +41,8 @@ instance.read_fits_objects(energy,data,wcs)
 instance = Utils()
 
 # Sum origianl spectra:
-instance.sum_spectra("output_spectrum_1.dat","output_spectrum_2.dat")
+input_files = ["bremss_spectrum.dat","pion_decay_spectrum.dat","ic_spectrum.dat"]
+instance.sum_spectra("total_spectrum.dat",input_files)
 
 # Plot (mult) spectra:
 inputs = ["output_spectrum_1.dat","output_spectrum_2.dat"]

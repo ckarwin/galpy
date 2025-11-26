@@ -11,6 +11,8 @@ from astropy.wcs import WCS
 import astropy.wcs.utils as utils
 from astropy.coordinates import SkyCoord
 import math
+import aplpy
+import matplotlib.ticker
 
 class GalMapsHeal:
 
@@ -245,7 +247,7 @@ class GalMapsHeal:
         
         return
 
-    def write_spectrum(self,savefile):
+    def write_spectrum(self, savefile, data_type="gamma"):
 
         """
         Write spectrum to file.
@@ -254,19 +256,34 @@ class GalMapsHeal:
         ----------
         savefile : str 
             Name of output data file (tab delimited).
+        data_type : str, optional
+            Data type being saved. Options are gamma (default), 
+            sync, and emiss.
         """
         
         # Need to reformat energy data to be commpatible with pandas:
         self.energy = np.array(self.energy).astype("float")
 
         # Write to file:
-        d = {"energy[MeV]":self.energy,"flux[MeV/cm^2/s/sr]":self.spectra_list}
-        df = pd.DataFrame(data=d)
-        df.to_csv(savefile,float_format='%10.5e',index=False,sep="\t",columns=["energy[MeV]", "flux[MeV/cm^2/s/sr]"])
-
+        if data_type == "sync":
+            d = {"frequency[MHz]":self.energy,"flux[erg/cm^2/s/sr/Hz]":self.spectra_list}
+            df = pd.DataFrame(data=d)
+            df.to_csv(savefile,float_format='%10.5e',index=False,\
+                    sep="\t",columns=["frequency[MHz]", "flux[erg/cm^2/s/sr/Hz]"])
+        if data_type == "gamma":
+            d = {"energy[MeV]":self.energy,"flux[MeV/cm^2/s/sr]":self.spectra_list}
+            df = pd.DataFrame(data=d)
+            df.to_csv(savefile,float_format='%10.5e',index=False,\
+                    sep="\t",columns=["energy[MeV]", "flux[MeV/cm^2/s/sr]"])
+        if data_type == "emiss":
+            d = {"energy[MeV]":self.energy,"emissivity[MeV/s/sr]":self.emissivity}
+            df = pd.DataFrame(data=d)
+            df.to_csv(savefile,float_format='%10.5e', index=False,\
+                    sep="\t",columns=["energy[MeV]", "emissivity[MeV/s/sr]"])
+        
         return
 
-    def plot_spectrum(self,savefile):
+    def plot_spectrum(self, savefile, fig_kwargs={}):
 
         """
         Plot map spectrum.
@@ -275,6 +292,8 @@ class GalMapsHeal:
         ----------
         savefile : str 
             Name of saved image file.
+        fig_kwargs : dict, optional
+            Pass any kwargs to plt.gca().set()
         """
 
         # Setup figure:
@@ -291,11 +310,53 @@ class GalMapsHeal:
         plt.yticks(fontsize=14)
         ax.tick_params(axis='both',which='major',length=9)
         ax.tick_params(axis='both',which='minor',length=5)
+        ax.set(**fig_kwargs)
+        plt.grid(ls=":",color="grey",alpha=0.3,lw=1)
         plt.savefig(savefile,bbox_inches='tight')
         plt.show()
         plt.close()
 
         return
+
+    def plot_emissivity(self, emiss_array, emiss_energy, save_prefix, fig_kwargs={}):
+
+        """
+        Plot emissivity in units of MeV/s/sr.
+        
+        Parameters
+        ----------
+        emiss_array : array
+            Array object from GALPROP emissivity file. This has shape
+            (1, E, z, r), with z = scale height and r = radial distance.  
+        emiss_energy : array
+            Energy array. 
+        save_prefix : str 
+            Prefix of saved image file.
+        fig_kwargs : dict, optional
+            Pass any kwargs to plt.gca().set() 
+        """
+    
+        # Setup figure:
+        fig = plt.figure(figsize=(9,6))
+        ax = plt.gca()
+            
+        # Plot:
+        plt.loglog(emiss_energy, emiss_array)
+        
+        plt.xlabel("Energy [MeV]", fontsize=14)
+        plt.ylabel("$\mathrm{E^2 \ Emissivity \ [\ MeV \ s^{-1} \ sr^{-1}]}$",fontsize=14)
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
+        ax.tick_params(axis='both',which='major',length=9)
+        ax.tick_params(axis='both',which='minor',length=5)
+        ax.set(**fig_kwargs)
+        plt.grid(ls=":",color="grey",alpha=0.3,lw=1)
+        plt.savefig(f"{save_prefix}_emissivity.pdf",bbox_inches='tight')
+        plt.show()
+        plt.close()
+
+        return
+    
 
     def gal2mega(self, file_type, output_file, use_2d=False):
 
@@ -428,14 +489,16 @@ class GalMapsHeal:
     
 class GalMapsFITS(GalMapsHeal):
 
-    def read_fits_file(self, input_file):
+    def read_fits_file(self, input_file, sync=False):
 
         """Read GALPROP map given in fits format.
 
         Parameters
         ----------
         input_file : str
-        Name of input GALPROP  FITS file.
+            Name of input GALPROP  FITS file.
+        sync : bool, optional
+            Option to read syncrtron skymap (default is False).
         """
         print()
         print("**********************")
@@ -445,7 +508,10 @@ class GalMapsFITS(GalMapsHeal):
         hdu = fits.open(input_file)
         self.data = hdu[0].data
         self.energy = hdu[1].data
-        self.energy = self.energy['Energy']
+        if sync == True:
+            self.energy = self.energy['Frequency']
+        else:
+            self.energy = self.energy['Energy']
         header = hdu[0].header
         self.wcs = WCS(header)
 
@@ -454,7 +520,6 @@ class GalMapsFITS(GalMapsHeal):
     def read_fits_objects(self, energy, data, wcs):
 
         """Read input objects defining FITS file.
-
 
         Parameters
         ----------
@@ -536,7 +601,7 @@ class GalMapsFITS(GalMapsHeal):
      
         return [SR0,SR1]
  
-    def make_spectrum(self, pixs=None, use_2d=False):
+    def make_spectrum(self, pixs=None, use_2d=False, sync=False):
 
         """
         Make spectrum by averaging over specified region.
@@ -550,11 +615,15 @@ class GalMapsFITS(GalMapsHeal):
         use_2d : boolean, optional
             Option to use 2d FITS file. Default is False, 
             corresponding to 3d. 
+        sync : boolean, optional
+            Option to calculate synchrotron spectrum. Default is False.
+            Note: Synchrotron skymaps have units of specific intensity,
+            i.e., [erg/cm2/s/sr/Hz]. 
         """
-
+ 
         spectra_list = []
         for E in range(0,len(self.energy)):
-            
+         
             if use_2d == False:
                 # Get average over all-sky:
                 if pixs is None:
@@ -574,7 +643,156 @@ class GalMapsFITS(GalMapsHeal):
                     spectra_list.append(np.mean(self.data[pixs[1],pixs[0]]))
 
         spectra_list = np.array(spectra_list)
-        self.spectra_list = (self.energy**2)*spectra_list
+        
+        if sync == True:
+            self.energy = self.energy/1e6 # MHz
+            self.spectra_list = spectra_list
+        
+        else:
+            self.spectra_list = (self.energy**2)*spectra_list
+
+        return
+
+    def get_emissivity(self, emiss_file, save_prefix, r=8, z=None,
+            make_plot=True, fig_kwargs={}, write=True):
+
+        """
+        Get emissivity in units of MeV/s/sr.
+        For Brem and pi0-decay, emissivity is per H atom.
+        For IC, emissivity is per photon (check).
+        
+        Parameters
+        ----------
+        emiss_file : str
+            GALPROP emissivity file. The array in this file has shape
+            (1, E, z, r), with z = scale height and r = radial distance.  
+        save_prefix : str 
+            Prefix for saved outputs.
+        r : int, optional
+            Radial bin index. Corresponds to radial binning in 
+            galdef file. Default is 8, which is nominally the local 
+            bin (i.e. between 8 - 9 kpc).
+        make_plot : bool, optional
+            Option to plot emissivity.
+        fig_kwargs : dict, optional
+            Pass any kwargs to plt.gca().set()
+        write : bool, optional
+            Option to write emissivity to dat file. Defaul is True.
+        """
+       
+        emiss_hdu = fits.open(emiss_file)
+        emiss_array = emiss_hdu[0].data
+
+        print()
+        print("data shape (1, E, z, r): " + str(emiss_array.shape))
+        print()
+
+        if z != None:
+            # Get emissivity at specified height:
+            self.emissivity = np.array(emiss_array[0,:,z,r].tolist())
+        else:
+            # Sum over all heights (z):
+            self.emissivity = np.sum(emiss_array[0,:,:,r], axis=1)
+        
+        # Get energy array:
+        energy_file = emiss_file.replace("emiss","mapcube")
+        self.read_fits_file(energy_file)
+
+        # Plot:
+        if make_plot == True:
+            self.plot_emissivity(self.emissivity, self.energy, save_prefix, fig_kwargs=fig_kwargs)
+        
+        # Save to dat file:
+        if write == True:
+            self.write_spectrum(f"{save_prefix}_emiss.dat", data_type="emiss")
+        
+        return 
+
+    def plot_galprop_skymap(self, fits_file, prefix_name, 
+            energy_index=0, vmin=None, vmax=None, plot_type="gamma"):
+        
+        """
+        Plot a GALPROP skymap.
+        
+        Parameters
+        ----------
+        fits_file : str
+            Input GALRPOP mapcube.
+        prefix_name : str
+            Prefix of saved image.
+        energy_index : int, optional
+            Energy index to plot (default is 0).
+        vmin : float, optional
+            Min value for plotting (default is None).
+        vmax : float, optional
+            Max value for plotting (default is None).
+        plot_type : str, optional
+            Type of data being plotted. Options are 
+            gamma (default) or sync. 
+        """
+
+        # Load FITS file:
+        with fits.open(fits_file) as hdul:
+            data = hdul[0].data    # (E, lat, lon)
+            header = hdul[0].header
+            energy = hdul[1].data
+            ne, ny, nx = data.shape
+
+        # Extract correct 2D MAP for this energy bin:
+        m = data[energy_index, :, :]
+        
+        # Rotate data to proper Galactic coords:
+        m = np.roll(m, -m.shape[1] // 2, axis=1)
+        m = np.fliplr(m)
+
+        # Update header accordingly:
+        header['CRPIX1'] = nx/2 + 0.5
+        header['CRVAL1'] = 0.0
+        header['CDELT1'] = -header['CDELT1']
+
+        # Mask values <= 0 for log plot:
+        m = np.where(m > 0, m, np.nan)
+
+        # Extract ONLY the celestial part of the WCS:
+        w = WCS(header).celestial
+
+        # Mollweide projection from WCS:
+        fig = plt.figure(figsize=(10, 5))
+        ax = fig.add_subplot(111, projection=w)
+
+        # Log scaling
+        norm = colors.LogNorm(vmin=vmin, vmax=vmax)
+
+        # Plot image with WCS transform
+        im = ax.imshow(m, origin='lower', cmap='inferno', norm=norm)
+
+        # Colorbar on side
+        cbar = plt.colorbar(im, ax=ax, orientation='vertical', fraction=0.03, pad=0.05, shrink=0.95)
+        if plot_type == "gamma":
+            label = "Intensity [$\mathrm{ph \ cm^{-2} \ s^{-1} \ sr^{-1} \ MeV^{-1}}$]"
+        if plot_type == "sync":
+            label = "Intensity [$\mathrm{erg \ cm^{-2} \ s^{-1} \ sr^{-1} \ Hz^{-1}}$]"
+        cbar.set_label(label, fontsize=12)
+        cbar.ax.tick_params(labelsize=12)
+
+        # Axis labels and grid
+        ax.set_xlabel("Galactic Longitude",fontsize=16)
+        ax.set_ylabel("Galactic Latitude",fontsize=16)
+        ax.tick_params(axis='both', labelsize=14)
+        ax.grid(color='grey', ls=':', alpha=0.6)
+
+        energy_value = energy[energy_index][0].item()
+        if plot_type == "gamma":
+            formatted = f"{energy_value:.2f}"
+            title = f"{prefix_name} ({formatted} MeV)"
+        if plot_type == "sync":
+            formatted = f"{energy_value/1e6:.2f}"
+            title = f"{prefix_name} ({formatted} MHz)"
+        ax.set_title(title, fontsize=16)
+
+        plt.tight_layout()
+        plt.savefig(f"{prefix_name}.png")
+        plt.show()
 
         return
 
@@ -672,7 +890,7 @@ class Utils(GalMapsFITS):
         plt.ylim(1e-5,1e-1)
         plt.xlabel("Energy [MeV]", fontsize=14, color=color2)
         plt.ylabel("$\mathrm{E^2 \ dN/dE \ [\ MeV \ cm^{-2} \ s^{-1} \ sr^{-1}]}$",fontsize=14, color=color2)
-        plt.legend(frameon=True,ncol=1,loc=2,handlelength=2,prop={'size': 9.5})
+        plt.legend(frameon=True,ncol=2,loc=2,handlelength=2,prop={'size': 9.5})
         plt.xticks(fontsize=14,color=color2)
         plt.yticks(fontsize=14,color=color2)
         ax.tick_params(axis='both',which='major',length=9,color=color2)
@@ -680,7 +898,7 @@ class Utils(GalMapsFITS):
         ax.set(**fig_kwargs)
         ax.set_facecolor(color1)
         plt.setp(ax.spines.values(), color=color2)
-        #plt.grid(ls=":",color="grey",alpha=0.4,lw=2)
+        plt.grid(ls=":",color="grey",alpha=0.3,lw=1)
         plt.savefig(savefile,bbox_inches='tight')
         if show_plot == True:
             plt.show()

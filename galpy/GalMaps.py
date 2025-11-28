@@ -657,9 +657,7 @@ class GalMapsFITS(GalMapsHeal):
             make_plot=True, fig_kwargs={}, write=True):
 
         """
-        Get emissivity in units of MeV/s/sr.
-        For Brem and pi0-decay, emissivity is per H atom.
-        For IC, emissivity is per photon (check).
+        Get emissivity in units of MeV/s/sr per H atom.
         
         Parameters
         ----------
@@ -672,6 +670,10 @@ class GalMapsFITS(GalMapsHeal):
             Radial bin index. Corresponds to radial binning in 
             galdef file. Default is 8, which is nominally the local 
             bin (i.e. between 8 - 9 kpc).
+        z : int, optional
+            Scale height bin index. Corresponds to z binning in 
+            galadef file. Default is None, for which the midpoint is
+            used, corresponding to the Galactic plane.
         make_plot : bool, optional
             Option to plot emissivity.
         fig_kwargs : dict, optional
@@ -691,8 +693,9 @@ class GalMapsFITS(GalMapsHeal):
             # Get emissivity at specified height:
             self.emissivity = np.array(emiss_array[0,:,z,r].tolist())
         else:
-            # Sum over all heights (z):
-            self.emissivity = np.sum(emiss_array[0,:,:,r], axis=1)
+            # Get emissivity in Galactic plane:
+            z = math.floor(emiss_array.shape[2]/2.0)
+            self.emissivity = np.array(emiss_array[0,:,z,r].tolist())
         
         # Get energy array:
         energy_file = emiss_file.replace("emiss","mapcube")

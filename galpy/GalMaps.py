@@ -16,7 +16,7 @@ import matplotlib.ticker
 
 class GalMapsHeal:
 
-    def read_healpix_file(self,input_file,verbose=False):
+    def read_healpix_file(self,input_file,verbose=False,sync=False):
         
         """
         Read GALPROP map given in healpix format.
@@ -27,7 +27,8 @@ class GalMapsHeal:
             Input GALPROP map in healpix format.
         verbose : boolean, optional 
             If True print more info about data. Default is False.
-        
+        sync : boolean, optional
+            Option to plot synchrotron skymaps. Default is False. 
         Note
         ----
         Currently only compatible with GALPROP v57. 
@@ -62,7 +63,10 @@ class GalMapsHeal:
         # Get data:
         # Note: energy and data are stored as numpy records:
         self.energy = hdu[2].data # MeV
-        self.energy = self.energy['energy'] 
+        if sync == True:
+            self.energy = self.energy['Frequency'] # Hz
+        else:
+            self.energy = self.energy['energy'] 
         self.num_ebins = self.energy.size
         self.data = hdu[1].data
     
@@ -71,13 +75,22 @@ class GalMapsHeal:
             print()
             print("Data record:")
             print("Size: " + str(self.data.size))
-            print("units: ph/cm^2/s/MeV/sr")
-            print(self.data)
-            print()
-            print("Number of Energy bins: " + str(self.num_ebins))
-            print("Energy array [MeV]:")
-            print(self.energy)
-            print()
+            if sync == True:
+                print("units: erg/cm^2/s/sr/Hz")
+                print(self.data)
+                print()
+                print("Number of Frequency bins: " + str(self.num_ebins))
+                print("Frequency array [Hz]:")
+                print(self.energy)
+                print() 
+            else:
+                print("units: ph/cm^2/s/MeV/sr")
+                print(self.data)
+                print()
+                print("Number of Energy bins: " + str(self.num_ebins))
+                print("Energy array [MeV]:")
+                print(self.energy)
+                print()
 
         return
 
@@ -89,7 +102,12 @@ class GalMapsHeal:
         Parameters
         -----------
         energy_bin : int 
-            Energy slice to use for healpix object. 
+            Energy slice to use for healpix object.
+
+        Note
+        ----
+        This also works for synchrotron maps. Just be aware that in
+        this case, the energy actually corresponds to frequency (MHz).
         """
 
         # Get data slice for given energy bin:
@@ -99,18 +117,23 @@ class GalMapsHeal:
 
         # Define Healpix object:
         self.galmap = HealpixMap(ebin_data, nside = self.nside, scheme = self.ordering)
-        
+        self.map_energy = self.energy[energy_bin].item()
+
         return
 
-    def plot_healmap(self,savefile,plot_kwargs={},fig_kwargs={}):
+    def plot_healmap(self, prefix_name, plot_type="gamma",
+            plot_kwargs={}, fig_kwargs={}):
 
         """
         Plot healpix map.
 
         Parameters
         -----------
-        savefile : str 
-            Name of output image file.
+        prefix_name : str 
+            Name for image.
+        plot_type : str, optional
+            Type of data being plotted. Options are gamma (default)
+            or sync. 
         plot_kwargs : dict, optional 
             Pass any kwargs to plt.imshow().
         fig_kwargs : dict, optional 
@@ -121,9 +144,18 @@ class GalMapsHeal:
         plot,ax = self.galmap.plot(cmap="inferno",cbar=True,**plot_kwargs)#,norm=colors.LogNorm(),cbar=True)
         ax.get_figure().set_figwidth(7)
         ax.get_figure().set_figheight(6)
-        plot.colorbar.set_label("$\mathrm{ph \ cm^{-2} \ s^{-1} \ sr^{-1}} \ MeV^{-1}$")
+        if plot_type == "gamma":
+            plot.colorbar.set_label("$\mathrm{ph \ cm^{-2} \ s^{-1} \ sr^{-1} \ MeV^{-1}}$")
+            formatted = f"{self.map_energy:.2f}"
+            map_title = f"{prefix_name} ({formatted} MeV)"
+        if plot_type == "sync":
+            plot.colorbar.set_label("$\mathrm{erg \ cm^{-2} \ s^{-1} \ sr^{-1} \ Hz^{-1}}$")
+            freq = self.map_energy/1e6 # MHz
+            formatted = f"{freq:.2f}"
+            map_title = f"{prefix_name} ({formatted} MHz)"
+        plt.title(map_title, fontsize=14)
         ax.set(**fig_kwargs)
-        plt.savefig(savefile,bbox_inches='tight')
+        plt.savefig(f"{prefix_name}_skymap.png",bbox_inches='tight')
         plt.show()
         plt.close()
 
@@ -218,7 +250,7 @@ class GalMapsHeal:
 
         return
 
-    def make_spectrum(self,pixs=None):
+    def make_spectrum(self,pixs=None,sync=False):
 
         """
         Make average spectrum over specified region.
@@ -227,6 +259,8 @@ class GalMapsHeal:
         ----------
         pixs : array, optional 
             Healpix pixels to use. Default is None, which uses all-sky.
+        sync : boolean, optional
+            Option to make synchrotron spectrum. Default is False. 
         """
         
         # Make spectrum:
@@ -241,9 +275,13 @@ class GalMapsHeal:
             # If averaging over limited region:
             else:
                 spectra_list.append(np.mean(self.data[this_bin][pixs]))
-        
-        # Scale of energy:
-        self.spectra_list = (self.energy**2)*spectra_list
+       
+        if sync == True:
+            self.energy = self.energy/1e6 # MHz
+            self.spectra_list = spectra_list
+        else:
+            # Scale by energy:
+            self.spectra_list = (self.energy**2)*spectra_list
         
         return
 
@@ -318,6 +356,96 @@ class GalMapsHeal:
 
         return
 
+    def get_emissivity_3d(self, emiss_file, save_prefix, x=None, y=None, z=None,
+            make_plot=True, fig_kwargs={}, write=True):
+
+        """
+        Get emissivity in units of MeV/s/sr per H atom.
+        
+        Parameters
+        ----------
+        emiss_file : str
+            GALPROP emissivity file. The array in this file has shape
+            (1, E, z, r), with z = scale height and r = radial distance.  
+        save_prefix : str 
+            Prefix for saved outputs.
+        x : float, optional
+            x distance in kpc. Default is None, in which case x will 
+            be at the location of the Sun.
+        y : float, optional
+            y distance in kpc. Default is None, in which case y will 
+            be 0 corresponding to the direction of the Sun. 
+        z : float, optional
+            z distance in kpc. Default is None, for which the midpoint 
+            is used, corresponding to the Galactic plane.
+        make_plot : bool, optional
+            Option to plot emissivity.
+        fig_kwargs : dict, optional
+            Pass any kwargs to plt.gca().set()
+        write : bool, optional
+            Option to write emissivity to dat file. Defaul is True.
+        """
+       
+        emiss_hdu = fits.open(emiss_file)
+        emiss_array = emiss_hdu[0].data
+
+        print()
+        print("data shape (E, z, y, x): " + str(emiss_array.shape))
+        print()
+ 
+        # Get emissivity in Galactic plane:
+        # Note: z points toward the North Galactic pole.
+        z_array = emiss_hdu[3].data
+        z_array = z_array["GAL-Z"]
+        if z == None:
+            z = 0
+        idz = np.abs(z_array - z).argmin().item()
+        distance = z_array[idz].item()
+        print()
+        print("z distance from GC: " + str(distance) + " kpc")
+        print()
+            
+        # Get index at Sun.
+        # Note: x points from Galactic center to Sun.
+        x_array = emiss_hdu[1].data
+        x_array = x_array["GAL-X"]
+        if x == None:
+            x = 8.5 # location of Sun
+        idx = np.abs(x_array - x).argmin().item()
+        distance = x_array[idx].item()
+        print()
+        print("x distance from GC: " + str(distance) + " kpc")
+        print()
+        
+        # Get index at Sun.
+        # Note: y is perpendicular to x-axis and points in the 
+        # direction of Galactic rotation.
+        y_array = emiss_hdu[2].data
+        y_array = y_array["GAL-Y"]
+        if y == None:
+            y = 0
+        idy = np.abs(y_array - y).argmin().item()
+        distance = y_array[idy].item()
+        print()
+        print("y distance from GC: " + str(distance) + " kpc")
+        print()
+            
+        # Get emissivity array:
+        self.emissivity = np.array(emiss_array[:,idz,idy,idx].tolist())
+ 
+        # Get energy array:
+        self.energy = emiss_hdu[4].data["Energy"]
+
+        # Plot:
+        if make_plot == True:
+            self.plot_emissivity(self.emissivity, self.energy, save_prefix, fig_kwargs=fig_kwargs)
+        
+        # Save to dat file:
+        if write == True:
+            self.write_spectrum(f"{save_prefix}_emiss.dat", data_type="emiss")
+        
+        return 
+
     def plot_emissivity(self, emiss_array, emiss_energy, save_prefix, fig_kwargs={}):
 
         """
@@ -357,6 +485,82 @@ class GalMapsHeal:
 
         return
     
+    def CR_spectra_3d(self, nuclei_file, species, x=None, write=False):
+        
+        """Plot CR spectrum.
+        
+        Parameters
+        ---------
+        nuclei_file : str
+            Output nuclie file from GALPROP.
+        species : str
+            Name of species to use. Must match names specified 
+            in nuclear file (see extension 4 in file).
+        x : float, optional
+            x distance in kpc. Default is None, in which case x will
+            be at the location of the Sun.
+        write : boolean, optional
+            Option to save spectrum to dat file. Default is False.
+        
+        Returns
+        -------
+        energy, array
+            Kinetic energy in MeV.
+        spec, array
+            CR spectrum of specified species 
+            in units of (MeV/nucleon)^2 * cm2/s/sr/(MeV/nucleon),
+            i.e. MeV/cm2/s/sr.
+        """
+       
+        print()
+        print("Species: " + species)
+        print()
+
+        # Read file:
+        hdu = fits.open(nuclei_file)
+       
+        # Energy array:
+        energy = hdu[3].data['Energy']
+        
+        # Get x index at Sun.
+        # Note: x points from Galactic center to Sun.
+        x_array = hdu[1].data
+        x_array = x_array["GAL-X"]
+        if x == None:
+            x = 8.5 # location of Sun
+        idx = np.abs(x_array - x).argmin().item()
+        distance = x_array[idx].item()
+        print()
+        print("x distance from GC: " + str(distance) + " kpc")
+        print()
+
+        # Get nuclear info:
+        nuc = hdu[4].data
+        nuc_list = []
+        for each in nuc:
+            nuc_list.append(each[0])
+        nuc_list = np.array(nuc_list)
+        idn = np.where(nuc_list == species)[0][0].item()
+    
+        data = hdu[0].data
+        print()
+        print("Data shape (Nuclei, energy, z, x): " + str(data.shape))
+        print()
+
+        spec = data[idn,:,0,idx]
+
+        if write == True:
+            # Write spec to dat file:
+                    
+            # Need to reformat energy data to be commpatible with pandas:
+            energy = np.array(energy).astype("float")
+            
+            d = {"KE[MeV]":energy,"flux[MeV/cm^2/s/sr]":spec}
+            df = pd.DataFrame(data=d)
+            df.to_csv(f"{species}_spectrum.dat",float_format='%10.5e',index=False,\
+                    sep="\t",columns=["KE[MeV]", "flux[MeV/cm^2/s/sr]"])
+        
+        return energy, spec
 
     def gal2mega(self, file_type, output_file, use_2d=False):
 

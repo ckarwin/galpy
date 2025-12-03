@@ -8,9 +8,11 @@ from scipy.stats import gmean
 # These examples extract events from a 47.5 degree box around the Galactic center.
 
 # Running healpix:
-this_file = "full/path/to/GALPROP/healpix/output"
+skymap_file = "full/path/to/GALPROP/healpix/output"
+emissivity_file = "full/path/to/GALPROP/fits/emissivity/output"
+nuclei_file = "full/path/to/GALPROP/fits/nuclei/output"
 instance = GalMapsHeal()
-instance.read_healpix_file(this_file,verbose=False)
+instance.read_healpix_file(skymap_file,verbose=False)
 instance.make_healmap(7)
 pixs=instance.get_polygon_region([42.5,137.5,137.5,42.5],[47.5,47.5,312.5,312.5]) 
 instance.mask_region(pixs)
@@ -19,6 +21,8 @@ instance.plot_healmap("skymap.png",fig_kwargs={'title':"example"},plot_kwargs={'
 instance.make_spectrum(pixs=pixs) 
 instance.write_spectrum("output_spectrum.dat")
 instance.plot_spectrum("spectra.pdf")
+instance.get_emissivity_3d(emissivity_file,"prefix_name")
+energy, spectra_1 = instance.CR_spectra_3d(nuclei_file, 'species')
 
 # Running fits: 
 skymap_file = "full/path/to/GALPROP/fits/mapcube/output"
@@ -47,6 +51,19 @@ instance.read_fits_file(this_file, sync=True)
 pixs=instance.get_fits_region([-47.5,47.5],[0,47.5], lon2=[312.5,360])
 instance.make_spectrum(pixs, sync=True)
 instance.write_spectrum(f"synchrotron_spectrum.dat", data_type="sync")
+instance.plot_spectrum("synchrotron_spectrum.pdf",\
+        fig_kwargs={'title':'Inner Galaxy ($|l| < 47.5^\circ; |b|<47.5^\circ$)',\
+        "xlabel":"Frequency [MHz]","ylabel":r"$I_\nu \ [\mathrm{erg \ cm^{-2} \ s^{-1} \ sr^{-1} \ Hz^{-1}}]$","ylim":(1e-20,1e-15)})
+
+# Synchrotron Emission example (HEALPIX):
+this_file = "../results/synchrotron_healpix_57_SA100_F98_example.gz"
+instance = GalMapsHeal()
+instance.read_healpix_file(this_file,verbose=False,sync=True)
+instance.make_healmap(11)
+pixs=instance.get_polygon_region([42.5,137.5,137.5,42.5],[47.5,47.5,312.5,312.5])
+instance.plot_healmap("sync", plot_type="sync", plot_kwargs={'norm':'log'})
+instance.make_spectrum(pixs=pixs,sync=True)
+instance.write_spectrum(f"sync_spectrum.dat",data_type="sync")
 instance.plot_spectrum("synchrotron_spectrum.pdf",\
         fig_kwargs={'title':'Inner Galaxy ($|l| < 47.5^\circ; |b|<47.5^\circ$)',\
         "xlabel":"Frequency [MHz]","ylabel":r"$I_\nu \ [\mathrm{erg \ cm^{-2} \ s^{-1} \ sr^{-1} \ Hz^{-1}}]$","ylim":(1e-20,1e-15)})

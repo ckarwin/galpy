@@ -805,7 +805,7 @@ class GalMapsFITS(GalMapsHeal):
      
         return [SR0,SR1]
  
-    def make_spectrum(self, pixs=None, use_2d=False, sync=False):
+    def make_spectrum(self, pixs=None, use_2d=False, sync=False, mode="mean"):
 
         """
         Make spectrum by averaging over specified region.
@@ -823,6 +823,8 @@ class GalMapsFITS(GalMapsHeal):
             Option to calculate synchrotron spectrum. Default is False.
             Note: Synchrotron skymaps have units of specific intensity,
             i.e., [erg/cm2/s/sr/Hz]. 
+        mode : str, optional
+            Either mean or sum. Default is mean. 
         """
  
         spectra_list = []
@@ -831,21 +833,33 @@ class GalMapsFITS(GalMapsHeal):
             if use_2d == False:
                 # Get average over all-sky:
                 if pixs is None:
-                    spectra_list.append(np.mean(self.data[E,:,:]))
-
+                    if mode == "mean":
+                        spectra_list.append(np.mean(self.data[E,:,:]))
+                    if mode == "sum":
+                        spectra_list.append(np.sum(self.data[E,:,:]))
+    
                 # Get average over specified region:
                 else:
-                    spectra_list.append(np.mean(self.data[E,pixs[1],pixs[0]]))
-        
+                    if mode == "mean":
+                        spectra_list.append(np.mean(self.data[E,pixs[1],pixs[0]]))
+                    if mode == "sum":
+                        spectra_list.append(np.sum(self.data[E,pixs[1],pixs[0]]))
+
             if use_2d == True:
                 # Get average over all-sky:
                 if pixs is None:
-                    spectra_list.append(np.mean(self.data[:,:]))
+                    if mode == "mean":
+                        spectra_list.append(np.mean(self.data[:,:]))
+                    if mode == "sum":
+                        spectra_list.append(np.sum(self.data[:,:]))
 
                 # Get average over specified region:
                 else:
-                    spectra_list.append(np.mean(self.data[pixs[1],pixs[0]]))
-
+                    if mode == "mean":
+                        spectra_list.append(np.mean(self.data[pixs[1],pixs[0]]))
+                    if mode == "sum":
+                        spectra_list.append(np.sum(self.data[pixs[1],pixs[0]]))
+    
         spectra_list = np.array(spectra_list)
         
         if sync == True:
